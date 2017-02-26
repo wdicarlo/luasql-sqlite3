@@ -480,6 +480,40 @@ static int conn_getlastautoid(lua_State *L)
   return 1;
 }
 
+static int conn_loadextension(lua_State *L)
+{
+  const char *libname;
+  char *errmsg = NULL;
+  conn_data *conn = getconnection(L);
+  int enabled = 0;
+  int res;
+
+  libname = luaL_checkstring(L, 2);
+
+  res = sqlite3_db_config(conn->sql_conn, SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION, 1, &enabled);
+  if (res != SQLITE_OK)
+    {
+      return luasql_faildirect(L, sqlite3_errmsg(conn->sql_conn));
+    }
+  if (!enabled)
+    {
+      errmsg = "failed to enable extension loading";
+      return luasql_faildirect(L, errmsg);
+    }
+  res = sqlite3_load_extension(conn->sql_conn, libname, 0, &errmsg);
+  if (res != SQLITE_OK)
+    {
+      lua_pushnil(L);
+      lua_pushliteral(L, LUASQL_PREFIX);
+      lua_pushstring(L, errmsg);
+      sqlite3_free(errmsg);
+      lua_concat(L, 2);
+      return 2;
+    }
+  lua_pushboolean(L, 1);
+  return 1;
+}
+
 
 /*
 ** Set "auto commit" property of the connection.
@@ -629,6 +663,7 @@ static void create_metatables (lua_State *L)
     {"rollback", conn_rollback},
     {"setautocommit", conn_setautocommit},
     {"getlastautoid", conn_getlastautoid},
+    {"loadextension", conn_loadextension},
     {NULL, NULL},
   };
   struct luaL_Reg cursor_methods[] = {
